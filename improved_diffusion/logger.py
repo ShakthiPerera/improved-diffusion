@@ -356,14 +356,14 @@ class Logger(object):
         if self.comm is None:
             d = self.name2val
         else:
-            d = mpi_weighted_mean(
-                self.comm,
+            d = distributed_weighted_mean(
                 {
                     name: (val, self.name2cnt.get(name, 1))
                     for (name, val) in self.name2val.items()
                 },
             )
-            if self.comm.rank != 0:
+            import torch.distributed as dist
+            if dist.is_initialized() and dist.get_rank() != 0:
                 d["dummy"] = 1  # so we don't get a warning about empty dict
         out = d.copy()  # Return the dict for unit testing purposes
         for fmt in self.output_formats:
@@ -400,43 +400,46 @@ class Logger(object):
                 fmt.writeseq(map(str, args))
 
 
-def get_rank_without_mpi_import():
-    # check environment variables here instead of importing mpi4py
-    # to avoid calling MPI_Init() when this module is imported
-    for varname in ["PMI_RANK", "OMPI_COMM_WORLD_RANK"]:
-        if varname in os.environ:
-            return int(os.environ[varname])
+def get_rank():
+    # Use the standard RANK env var set by torchrun / torch.distributed.launch
+    rank = os.environ.get("RANK", None)
+    if rank is not None:
+        return int(rank)
     return 0
 
 
-def mpi_weighted_mean(comm, local_name2valcount):
+def distributed_weighted_mean(local_name2valcount):
     """
-    Copied from: https://github.com/openai/baselines/blob/ea25b9e8b234e6ee1bca43083f8f3cf974143998/baselines/common/mpi_util.py#L110
-    Perform a weighted average over dicts that are each on a different node
+    Perform a weighted average over dicts using torch.distributed all_reduce.
     Input: local_name2valcount: dict mapping key -> (value, count)
     Returns: key -> mean
     """
-    all_name2valcount = comm.gather(local_name2valcount)
-    if comm.rank == 0:
-        name2sum = defaultdict(float)
-        name2count = defaultdict(float)
-        for n2vc in all_name2valcount:
-            for (name, (val, count)) in n2vc.items():
-                try:
-                    val = float(val)
-                except ValueError:
-                    if comm.rank == 0:
-                        warnings.warn(
-                            "WARNING: tried to compute mean on non-float {}={}".format(
-                                name, val
-                            )
-                        )
-                else:
-                    name2sum[name] += val * count
-                    name2count[name] += count
-        return {name: name2sum[name] / name2count[name] for name in name2sum}
-    else:
+    import torch as th
+    import torch.distributed as dist
+
+    if not dist.is_initialized() or dist.get_world_size() == 1:
+        return {name: val for name, (val, count) in local_name2valcount.items()}
+
+    all_keys = sorted(local_name2valcount.keys())
+    if not all_keys:
         return {}
+
+    sum_vals = th.tensor(
+        [local_name2valcount[k][0] * local_name2valcount[k][1] for k in all_keys],
+        dtype=th.float64,
+    )
+    sum_counts = th.tensor(
+        [float(local_name2valcount[k][1]) for k in all_keys],
+        dtype=th.float64,
+    )
+    dist.all_reduce(sum_vals, op=dist.ReduceOp.SUM)
+    dist.all_reduce(sum_counts, op=dist.ReduceOp.SUM)
+
+    return {
+        name: sum_vals[i].item() / sum_counts[i].item()
+        for i, name in enumerate(all_keys)
+        if sum_counts[i].item() > 0
+    }
 
 
 def configure(dir=None, format_strs=None, comm=None, log_suffix=""):
@@ -454,7 +457,7 @@ def configure(dir=None, format_strs=None, comm=None, log_suffix=""):
     dir = os.path.expanduser(dir)
     os.makedirs(os.path.expanduser(dir), exist_ok=True)
 
-    rank = get_rank_without_mpi_import()
+    rank = get_rank()
     if rank > 0:
         log_suffix = log_suffix + "-rank%03i" % rank
 

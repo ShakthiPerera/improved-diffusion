@@ -20,7 +20,7 @@ CLASSES = (
 
 def main():
     for split in ["train", "test"]:
-        out_dir = f"cifar_{split}"
+        out_dir = f"datasets/cifar_{split}"
         if os.path.exists(out_dir):
             print(f"skipping split {split} since {out_dir} already exists.")
             continue

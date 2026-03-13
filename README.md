@@ -47,10 +47,10 @@ Once you have setup your hyper-parameters, you can run an experiment like so:
 python scripts/image_train.py --data_dir path/to/images $MODEL_FLAGS $DIFFUSION_FLAGS $TRAIN_FLAGS
 ```
 
-You may also want to train in a distributed manner. In this case, run the same command with `mpiexec`:
+You may also want to train in a distributed manner. In this case, use `torchrun`:
 
 ```
-mpiexec -n $NUM_GPUS python scripts/image_train.py --data_dir path/to/images $MODEL_FLAGS $DIFFUSION_FLAGS $TRAIN_FLAGS
+torchrun --nproc_per_node=$NUM_GPUS scripts/image_train.py --data_dir path/to/images $MODEL_FLAGS $DIFFUSION_FLAGS $TRAIN_FLAGS
 ```
 
 When training in a distributed manner, you must manually divide the `--batch_size` argument by the number of ranks. In lieu of distributed training, you may use `--microbatch 16` (or `--microbatch 1` in extreme memory-limited cases) to reduce memory usage.
@@ -69,7 +69,7 @@ python scripts/image_sample.py --model_path /path/to/model.pt $MODEL_FLAGS $DIFF
 
 Again, this will save results to a logging directory. Samples are saved as a large `npz` file, where `arr_0` in the file is a large batch of samples.
 
-Just like for training, you can run `image_sample.py` through MPI to use multiple GPUs and machines.
+Just like for training, you can run `image_sample.py` with `torchrun` to use multiple GPUs and machines.
 
 You can change the number of sampling steps using the `--timestep_respacing` argument. For example, `--timestep_respacing 250` uses 250 steps to sample. Passing `--timestep_respacing ddim250` is similar, but uses the uniform stride from the [DDIM paper](https://arxiv.org/abs/2010.02502) rather than our stride.
 
@@ -79,7 +79,7 @@ To sample using [DDIM](https://arxiv.org/abs/2010.02502), pass `--use_ddim True`
 
 This section includes model checkpoints and run flags for the main models in the paper.
 
-Note that the batch sizes are specified for single-GPU training, even though most of these runs will not naturally fit on a single GPU. To address this, either set `--microbatch` to a small value (e.g. 4) to train on one GPU, or run with MPI and divide `--batch_size` by the number of GPUs.
+Note that the batch sizes are specified for single-GPU training, even though most of these runs will not naturally fit on a single GPU. To address this, either set `--microbatch` to a small value (e.g. 4) to train on one GPU, or use `torchrun` with multiple GPUs and divide `--batch_size` by the number of GPUs.
 
 Unconditional ImageNet-64 with our `L_hybrid` objective and cosine noise schedule [[checkpoint](https://openaipublic.blob.core.windows.net/diffusion/march-2021/imagenet64_uncond_100M_1500K.pt)]:
 

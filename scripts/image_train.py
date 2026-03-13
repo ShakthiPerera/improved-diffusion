@@ -1,27 +1,29 @@
 """
 Train a diffusion model on images.
 """
-
 import argparse
-
 from improved_diffusion import dist_util, logger
+
 from improved_diffusion.image_datasets import load_data
+
 from improved_diffusion.resample import create_named_schedule_sampler
+
 from improved_diffusion.script_util import (
     model_and_diffusion_defaults,
     create_model_and_diffusion,
     args_to_dict,
     add_dict_to_argparser,
 )
+
 from improved_diffusion.train_util import TrainLoop
 
 
 def main():
     args = create_argparser().parse_args()
-
+    
     dist_util.setup_dist()
     logger.configure()
-
+   
     logger.log("creating model and diffusion...")
     model, diffusion = create_model_and_diffusion(
         **args_to_dict(args, model_and_diffusion_defaults().keys())
@@ -63,7 +65,7 @@ def create_argparser():
         schedule_sampler="uniform",
         lr=1e-4,
         weight_decay=0.0,
-        lr_anneal_steps=0,
+        lr_anneal_steps=500000,
         batch_size=1,
         microbatch=-1,  # -1 disables microbatches
         ema_rate="0.9999",  # comma-separated list of EMA values

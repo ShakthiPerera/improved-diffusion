@@ -123,11 +123,13 @@ class GaussianDiffusion:
         model_var_type,
         loss_type,
         rescale_timesteps=False,
+        energy_lambda=0.0,
     ):
         self.model_mean_type = model_mean_type
         self.model_var_type = model_var_type
         self.loss_type = loss_type
         self.rescale_timesteps = rescale_timesteps
+        self.energy_lambda = energy_lambda
 
         # Use float64 for accuracy.
         betas = np.array(betas, dtype=np.float64)
@@ -744,6 +746,20 @@ class GaussianDiffusion:
                 terms["loss"] = terms["mse"] + terms["vb"]
             else:
                 terms["loss"] = terms["mse"]
+
+            if self.energy_lambda > 0.0 and self.model_mean_type in [
+                ModelMeanType.EPSILON,
+                ModelMeanType.START_X,
+            ]:
+                if self.model_mean_type == ModelMeanType.EPSILON:
+                    eps_pred = model_output
+                else:
+                    eps_pred = self._predict_eps_from_xstart(x_t, t, model_output)
+                # r_t = (1/d)||ε̂||² per sample, shape [B]
+                r_t = (eps_pred ** 2).view(eps_pred.shape[0], -1).mean(dim=1)
+                terms["energy_penalty"] = (1.0 - r_t) ** 2
+                terms["r_t"] = r_t
+                terms["loss"] = terms["loss"] + self.energy_lambda * terms["energy_penalty"]
         else:
             raise NotImplementedError(self.loss_type)
 
