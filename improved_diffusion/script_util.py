@@ -33,6 +33,7 @@ def model_and_diffusion_defaults():
         use_checkpoint=False,
         use_scale_shift_norm=True,
         energy_lambda=0.0,
+        loss_in_eps_space=False,
     )
 
 
@@ -57,6 +58,7 @@ def create_model_and_diffusion(
     use_checkpoint,
     use_scale_shift_norm,
     energy_lambda=0.0,
+    loss_in_eps_space=False,
 ):
     model = create_model(
         image_size,
@@ -82,6 +84,7 @@ def create_model_and_diffusion(
         rescale_learned_sigmas=rescale_learned_sigmas,
         timestep_respacing=timestep_respacing,
         energy_lambda=energy_lambda,
+        loss_in_eps_space=loss_in_eps_space,
     )
     return model, diffusion
 
@@ -242,6 +245,7 @@ def create_gaussian_diffusion(
     rescale_learned_sigmas=False,
     timestep_respacing="",
     energy_lambda=0.0,
+    loss_in_eps_space=False,
 ):
     betas = gd.get_named_beta_schedule(noise_schedule, steps)
     if use_kl:
@@ -270,6 +274,7 @@ def create_gaussian_diffusion(
         loss_type=loss_type,
         rescale_timesteps=rescale_timesteps,
         energy_lambda=energy_lambda,
+        loss_in_eps_space=loss_in_eps_space,
     )
 
 

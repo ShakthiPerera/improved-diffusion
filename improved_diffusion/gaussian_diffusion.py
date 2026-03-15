@@ -124,12 +124,14 @@ class GaussianDiffusion:
         loss_type,
         rescale_timesteps=False,
         energy_lambda=0.0,
+        loss_in_eps_space=False,
     ):
         self.model_mean_type = model_mean_type
         self.model_var_type = model_var_type
         self.loss_type = loss_type
         self.rescale_timesteps = rescale_timesteps
         self.energy_lambda = energy_lambda
+        self.loss_in_eps_space = loss_in_eps_space
 
         # Use float64 for accuracy.
         betas = np.array(betas, dtype=np.float64)
@@ -733,15 +735,31 @@ class GaussianDiffusion:
                     # Without a factor of 1/1000, the VB term hurts the MSE term.
                     terms["vb"] *= self.num_timesteps / 1000.0
 
-            target = {
-                ModelMeanType.PREVIOUS_X: self.q_posterior_mean_variance(
-                    x_start=x_start, x_t=x_t, t=t
-                )[0],
-                ModelMeanType.START_X: x_start,
-                ModelMeanType.EPSILON: noise,
-            }[self.model_mean_type]
-            assert model_output.shape == target.shape == x_start.shape
-            terms["mse"] = mean_flat((target - model_output) ** 2)
+            if self.loss_in_eps_space:
+                # Always compute MSE loss in epsilon space, regardless of prediction type.
+                # If model predicts x0, convert to epsilon first via the rearranged forward
+                # process equation: eps = (sqrt_recip_alpha_cumprod * x_t - x0) / sqrt_recipm1_alpha_cumprod
+                if self.model_mean_type == ModelMeanType.EPSILON:
+                    eps_pred = model_output
+                elif self.model_mean_type == ModelMeanType.START_X:
+                    eps_pred = self._predict_eps_from_xstart(x_t, t, model_output)
+                elif self.model_mean_type == ModelMeanType.PREVIOUS_X:
+                    pred_xstart = self._predict_xstart_from_xprev(x_t=x_t, t=t, xprev=model_output)
+                    eps_pred = self._predict_eps_from_xstart(x_t, t, pred_xstart)
+                assert eps_pred.shape == x_start.shape
+                terms["mse"] = mean_flat((eps_pred - noise) ** 2)
+            else:
+                target = {
+                    ModelMeanType.PREVIOUS_X: self.q_posterior_mean_variance(
+                        x_start=x_start, x_t=x_t, t=t
+                    )[0],
+                    ModelMeanType.START_X: x_start,
+                    ModelMeanType.EPSILON: noise,
+                }[self.model_mean_type]
+                assert model_output.shape == target.shape == x_start.shape
+                terms["mse"] = mean_flat((target - model_output) ** 2)
+                eps_pred = None
+
             if "vb" in terms:
                 terms["loss"] = terms["mse"] + terms["vb"]
             else:
@@ -751,15 +769,21 @@ class GaussianDiffusion:
                 ModelMeanType.EPSILON,
                 ModelMeanType.START_X,
             ]:
-                if self.model_mean_type == ModelMeanType.EPSILON:
-                    eps_pred = model_output
-                else:
-                    eps_pred = self._predict_eps_from_xstart(x_t, t, model_output)
-                # r_t = (1/d)||ε̂||² per sample, shape [B]
+                if eps_pred is None:
+                    if self.model_mean_type == ModelMeanType.EPSILON:
+                        eps_pred = model_output
+                    else:
+                        eps_pred = self._predict_eps_from_xstart(x_t, t, model_output)
+                # r_t = (1/d)||ε̂||² per sample, shape [B], kept for logging
                 r_t = (eps_pred ** 2).view(eps_pred.shape[0], -1).mean(dim=1)
-                terms["energy_penalty"] = (1.0 - r_t) ** 2
+                # batch-average r_t: finite-sample estimate of E[r_t] (scalar)
+                r_t_batch = r_t.mean()
+                # energy penalty is (1 - E[r_t])^2 — a single scalar per batch
+                energy_penalty = (1.0 - r_t_batch) ** 2
                 terms["r_t"] = r_t
-                terms["loss"] = terms["loss"] + self.energy_lambda * terms["energy_penalty"]
+                terms["r_t_batch"] = r_t_batch
+                terms["energy_penalty"] = energy_penalty
+                terms["loss"] = terms["loss"] + self.energy_lambda * energy_penalty
         else:
             raise NotImplementedError(self.loss_type)
 
