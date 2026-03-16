@@ -124,6 +124,7 @@ class GaussianDiffusion:
         loss_type,
         rescale_timesteps=False,
         energy_lambda=0.0,
+        energy_mode="batch_mean",
         loss_in_eps_space=False,
     ):
         self.model_mean_type = model_mean_type
@@ -131,6 +132,7 @@ class GaussianDiffusion:
         self.loss_type = loss_type
         self.rescale_timesteps = rescale_timesteps
         self.energy_lambda = energy_lambda
+        self.energy_mode = energy_mode
         self.loss_in_eps_space = loss_in_eps_space
 
         # Use float64 for accuracy.
@@ -776,12 +778,32 @@ class GaussianDiffusion:
                         eps_pred = self._predict_eps_from_xstart(x_t, t, model_output)
                 # r_t = (1/d)||ε̂||² per sample, shape [B], kept for logging
                 r_t = (eps_pred ** 2).view(eps_pred.shape[0], -1).mean(dim=1)
-                # batch-average r_t: finite-sample estimate of E[r_t] (scalar)
                 r_t_batch = r_t.mean()
-                # energy penalty is (1 - E[r_t])^2 — a single scalar per batch
-                energy_penalty = (1.0 - r_t_batch) ** 2
                 terms["r_t"] = r_t
                 terms["r_t_batch"] = r_t_batch
+
+                eps_flat = eps_pred.view(eps_pred.shape[0], -1)  # [B, d]
+
+                if self.energy_mode == "batch_mean":
+                    # Strategy 2: (1 - E[r_t])^2, scalar
+                    energy_penalty = (1.0 - r_t_batch) ** 2
+
+                elif self.energy_mode == "per_dim":
+                    # Strategy 3: each dim j enforced to unit variance marginally
+                    # var_per_dim[j] = (1/B) Σ_i eps_flat[i,j]^2  (zero-mean assumption)
+                    var_per_dim = eps_flat.square().mean(dim=0)         # [d]
+                    energy_penalty = ((var_per_dim - 1.0) ** 2).mean() # scalar
+
+                elif self.energy_mode == "full_cov":
+                    # Strategy 4: full Cov(ε̂) = I
+                    B = eps_flat.shape[0]
+                    cov = (eps_flat.T @ eps_flat) / B                           # [d, d]
+                    eye = th.eye(cov.shape[0], device=cov.device, dtype=cov.dtype)
+                    energy_penalty = ((cov - eye) ** 2).mean()                  # scalar
+
+                else:
+                    raise NotImplementedError(f"energy_mode={self.energy_mode!r}")
+
                 terms["energy_penalty"] = energy_penalty
                 terms["loss"] = terms["loss"] + self.energy_lambda * energy_penalty
         else:
