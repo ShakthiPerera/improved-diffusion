@@ -292,7 +292,20 @@ class TrainLoop:
             ) as f:
                 th.save(self.opt.state_dict(), f)
 
+            prev_step = self.step + self.resume_step - self.save_interval
+            if prev_step >= 0:
+                for old_file in self._prev_checkpoint_filenames(prev_step):
+                    old_path = bf.join(get_blob_logdir(), old_file)
+                    if bf.exists(old_path):
+                        os.remove(old_path)
+
         dist.barrier()
+
+    def _prev_checkpoint_filenames(self, step):
+        names = [f"model{step:06d}.pt", f"opt{step:06d}.pt"]
+        for rate in self.ema_rate:
+            names.append(f"ema_{rate}_{step:06d}.pt")
+        return names
 
     def _master_params_to_state_dict(self, master_params):
         if self.use_fp16:
