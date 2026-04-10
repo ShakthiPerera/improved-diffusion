@@ -8,9 +8,15 @@ cd "${REPO_DIR}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 export PYTHONPATH="${REPO_DIR}:${PYTHONPATH:-}"
 
-# CIFAR-10 data and logging.
+# CIFAR-10 data
 DATA_DIR="${DATA_DIR:-${REPO_DIR}/datasets/cifar_train}"
-OPENAI_LOGDIR="${OPENAI_LOGDIR:-${REPO_DIR}/logs/cifar10_energy_batch_mean}"
+
+# Energy regularization.
+ENERGY_LAMBDA="${ENERGY_LAMBDA:-0.0}"
+ENERGY_MODE="${ENERGY_MODE:-batch_mean}"
+
+#logging
+OPENAI_LOGDIR="${OPENAI_LOGDIR:-${REPO_DIR}/logs/cifar10_${ENERGY_LAMBDA}_${ENERGY_MODE}_1}"
 export OPENAI_LOGDIR
 
 # Launch mode.
@@ -20,21 +26,19 @@ NPROC_PER_NODE="${NPROC_PER_NODE:-1}"
 # Training hyperparameters.
 PER_GPU_BATCH_SIZE="${PER_GPU_BATCH_SIZE:-128}"
 MICROBATCH="${MICROBATCH:--1}"
-LR="${LR:-1e-4}"
-DIFFUSION_STEPS="${DIFFUSION_STEPS:-4000}"
-NOISE_SCHEDULE="${NOISE_SCHEDULE:-cosine}"
+LR="${LR:-0.0002}"
+DIFFUSION_STEPS="${DIFFUSION_STEPS:-1000}"
+NOISE_SCHEDULE="${NOISE_SCHEDULE:-linear}"
 EMA_RATE="${EMA_RATE:-0.9999}"
 SAVE_INTERVAL="${SAVE_INTERVAL:-10000}"
 LOG_INTERVAL="${LOG_INTERVAL:-10}"
-LR_ANNEAL_STEPS="${LR_ANNEAL_STEPS:-500000}"
+LR_ANNEAL_STEPS="${LR_ANNEAL_STEPS:-800000}"
 USE_FP16="${USE_FP16:-False}"
 
-# Energy regularization.
-ENERGY_LAMBDA="${ENERGY_LAMBDA:-0.1}"
-ENERGY_MODE="${ENERGY_MODE:-batch_mean}"
-
 # Resume support.
+# RESUME_CHECKPOINT="${RESUME_CHECKPOINT:-/storage2/Diffusion/repos/improved-diffusion/logs/cifar10_0.0_batch_mean/model670000.pt}"
 RESUME_CHECKPOINT="${RESUME_CHECKPOINT:-}"
+
 
 # Optional dataset prep.
 PREPARE_DATA="${PREPARE_DATA:-0}"
@@ -58,8 +62,8 @@ CMD=(
   --image_size 32
   --num_channels 128
   --num_res_blocks 3
-  --learn_sigma True
-  --dropout 0.3
+  --learn_sigma False
+  --dropout 0.1
   --diffusion_steps "${DIFFUSION_STEPS}"
   --noise_schedule "${NOISE_SCHEDULE}"
   --lr "${LR}"
