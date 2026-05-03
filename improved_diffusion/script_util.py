@@ -23,6 +23,7 @@ def model_and_diffusion_defaults():
         learn_sigma=False,
         sigma_small=False,
         class_cond=False,
+        num_classes=NUM_CLASSES,
         diffusion_steps=1000,
         noise_schedule="linear",
         timestep_respacing="",
@@ -58,6 +59,7 @@ def create_model_and_diffusion(
     rescale_learned_sigmas,
     use_checkpoint,
     use_scale_shift_norm,
+    num_classes=NUM_CLASSES,
     energy_lambda=0.0,
     energy_mode="batch_mean",
     loss_in_eps_space=False,
@@ -68,6 +70,7 @@ def create_model_and_diffusion(
         num_res_blocks,
         learn_sigma=learn_sigma,
         class_cond=class_cond,
+        num_classes=num_classes,
         use_checkpoint=use_checkpoint,
         attention_resolutions=attention_resolutions,
         num_heads=num_heads,
@@ -104,6 +107,7 @@ def create_model(
     num_heads_upsample,
     use_scale_shift_norm,
     dropout,
+    num_classes=NUM_CLASSES,
 ):
     if image_size == 256:
         channel_mult = (1, 1, 2, 2, 4, 4)
@@ -126,7 +130,7 @@ def create_model(
         attention_resolutions=tuple(attention_ds),
         dropout=dropout,
         channel_mult=channel_mult,
-        num_classes=(NUM_CLASSES if class_cond else None),
+        num_classes=(num_classes if class_cond else None),
         use_checkpoint=use_checkpoint,
         num_heads=num_heads,
         num_heads_upsample=num_heads_upsample,
