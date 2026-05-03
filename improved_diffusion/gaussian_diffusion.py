@@ -126,6 +126,7 @@ class GaussianDiffusion:
         energy_lambda=0.0,
         energy_mode="batch_mean",
         loss_in_eps_space=False,
+        min_snr_gamma = 0.0, ###########
     ):
         self.model_mean_type = model_mean_type
         self.model_var_type = model_var_type
@@ -134,6 +135,7 @@ class GaussianDiffusion:
         self.energy_lambda = energy_lambda
         self.energy_mode = energy_mode
         self.loss_in_eps_space = loss_in_eps_space
+        self.min_snr_gamma = min_snr_gamma  ############
 
         # Use float64 for accuracy.
         betas = np.array(betas, dtype=np.float64)
@@ -679,6 +681,25 @@ class GaussianDiffusion:
         # otherwise return KL(q(x_{t-1}|x_t,x_0) || p(x_{t-1}|x_t))
         output = th.where((t == 0), decoder_nll, kl)
         return {"output": output, "pred_xstart": out["pred_xstart"]}
+    
+    def _apply_min_snr_weight(self, per_sample_mse, t, in_eps_space=True):
+        """Returns per_sample_mse unchanged if min_snr_gamma==0, else scales by 
+        min{SNR,gamma}/SNR for e space and min{SNR,gamma} for x0 space. 
+        In the case of SNR=0, we return the unweighted MSE to avoid NaNs."""
+        if self.min_snr_gamma <= 0.0:
+            return per_sample_mse
+        alpha_t = _extract_into_tensor(self.sqrt_alphas_cumprod, t, t.shape)
+        sigma_t = _extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, t.shape)
+        snr = (alpha_t / sigma_t) ** 2
+
+        if in_eps_space:
+            weight = th.clamp(snr, max=self.min_snr_gamma) / snr   # min{SNR,γ}/SNR
+        else:
+            weight = th.clamp(snr, max=self.min_snr_gamma)          # min{SNR,γ}  ← x0-space
+
+        weight = th.where(snr == 0, th.ones_like(weight), weight)
+        return weight * per_sample_mse
+
 
     def training_losses(self, model, x_start, t, model_kwargs=None, noise=None):
         """
@@ -749,7 +770,9 @@ class GaussianDiffusion:
                     pred_xstart = self._predict_xstart_from_xprev(x_t=x_t, t=t, xprev=model_output)
                     eps_pred = self._predict_eps_from_xstart(x_t, t, pred_xstart)
                 assert eps_pred.shape == x_start.shape
-                terms["mse"] = mean_flat((eps_pred - noise) ** 2)
+                # terms["mse"] = mean_flat((eps_pred - noise) ** 2)  # original
+                _raw_mse = mean_flat((eps_pred - noise) ** 2) #######
+                terms["mse"] = self._apply_min_snr_weight(_raw_mse,t,in_eps_space=True) #####
             else:
                 target = {
                     ModelMeanType.PREVIOUS_X: self.q_posterior_mean_variance(
@@ -759,7 +782,10 @@ class GaussianDiffusion:
                     ModelMeanType.EPSILON: noise,
                 }[self.model_mean_type]
                 assert model_output.shape == target.shape == x_start.shape
-                terms["mse"] = mean_flat((target - model_output) ** 2)
+                # terms["mse"] = mean_flat((target - model_output) ** 2) # original
+                _raw_mse = mean_flat((target - model_output) ** 2)  ########
+                in_eps = (self.model_mean_type == ModelMeanType.EPSILON) ########
+                terms["mse"] = self._apply_min_snr_weight(_raw_mse,t,in_eps_space=in_eps)  ########
                 eps_pred = None
 
             if "vb" in terms:

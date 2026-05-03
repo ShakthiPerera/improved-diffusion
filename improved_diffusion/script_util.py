@@ -36,6 +36,7 @@ def model_and_diffusion_defaults():
         energy_lambda=0.0,
         energy_mode="batch_mean",
         loss_in_eps_space=False,
+        min_snr_gamma = 0.0, ############
     )
 
 
@@ -63,6 +64,7 @@ def create_model_and_diffusion(
     energy_lambda=0.0,
     energy_mode="batch_mean",
     loss_in_eps_space=False,
+    min_snr_gamma=0.0, ############
 ):
     model = create_model(
         image_size,
@@ -91,6 +93,7 @@ def create_model_and_diffusion(
         energy_lambda=energy_lambda,
         energy_mode=energy_mode,
         loss_in_eps_space=loss_in_eps_space,
+        min_snr_gamma=min_snr_gamma, ###########
     )
     return model, diffusion
 
@@ -254,6 +257,7 @@ def create_gaussian_diffusion(
     energy_lambda=0.0,
     energy_mode="batch_mean",
     loss_in_eps_space=False,
+    min_snr_gamma=0.0, ############
 ):
     betas = gd.get_named_beta_schedule(noise_schedule, steps)
     if use_kl:
@@ -284,6 +288,7 @@ def create_gaussian_diffusion(
         energy_lambda=energy_lambda,
         energy_mode=energy_mode,
         loss_in_eps_space=loss_in_eps_space,
+        min_snr_gamma=min_snr_gamma, ###########
     )
 
 
