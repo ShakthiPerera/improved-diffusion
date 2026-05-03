@@ -12,11 +12,14 @@ export PYTHONPATH="${REPO_DIR}:${PYTHONPATH:-}"
 DATA_DIR="${DATA_DIR:-${REPO_DIR}/datasets/cifar_train}"
 
 # Energy regularization.
-ENERGY_LAMBDA="${ENERGY_LAMBDA:-0.0}"
+ENERGY_LAMBDA="${ENERGY_LAMBDA:-0.3}"
 ENERGY_MODE="${ENERGY_MODE:-batch_mean}"
 
+# Min-SNR weighting (0.0 = disabled, 5.0 = Min-SNR-5 from paper).
+MIN_SNR_GAMMA="${MIN_SNR_GAMMA:-5.0}"
+
 #logging
-OPENAI_LOGDIR="${OPENAI_LOGDIR:-${REPO_DIR}/logs/cifar10_${ENERGY_LAMBDA}_${ENERGY_MODE}_1}"
+OPENAI_LOGDIR="${OPENAI_LOGDIR:-${REPO_DIR}/logs/cifar10_${ENERGY_LAMBDA}_${ENERGY_MODE}_minsnr${MIN_SNR_GAMMA}}"
 export OPENAI_LOGDIR
 
 # Launch mode.
@@ -76,6 +79,7 @@ CMD=(
   --use_fp16 "${USE_FP16}"
   --energy_lambda "${ENERGY_LAMBDA}"
   --energy_mode "${ENERGY_MODE}"
+  --min_snr_gamma "${MIN_SNR_GAMMA}"
 )
 
 if [[ -n "${RESUME_CHECKPOINT}" ]]; then
@@ -91,6 +95,7 @@ echo "Processes/node:     ${NPROC_PER_NODE}"
 echo "Per-GPU batch size: ${PER_GPU_BATCH_SIZE}"
 echo "Energy lambda:      ${ENERGY_LAMBDA}"
 echo "Energy mode:        ${ENERGY_MODE}"
+echo "Min-SNR gamma:      ${MIN_SNR_GAMMA}"
 if [[ -n "${RESUME_CHECKPOINT}" ]]; then
   echo "Resume checkpoint:  ${RESUME_CHECKPOINT}"
 else
