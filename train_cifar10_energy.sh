@@ -9,7 +9,8 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 export PYTHONPATH="${REPO_DIR}:${PYTHONPATH:-}"
 
 # CIFAR-10 data
-DATA_DIR="${DATA_DIR:-${REPO_DIR}/datasets/cifar_train}"
+# DATA_DIR="${DATA_DIR:-${REPO_DIR}/datasets/cifar_train}"
+DATA_DIR="${DATA_DIR:-/home/shakthip/improved-diffusion/datasets/cifar_train}"
 
 # Energy regularization.
 ENERGY_LAMBDA="${ENERGY_LAMBDA:-0.3}"
