@@ -10,10 +10,15 @@ export PYTHONPATH="${REPO_DIR}:${PYTHONPATH:-}"
 
 # CIFAR-10 data. The dataset preparation script writes files like
 # plane_00000.png, which are used as class labels by image_datasets.py.
-DATA_DIR="${DATA_DIR:-${REPO_DIR}/datasets/cifar_train}"
+# DATA_DIR="${DATA_DIR:-${REPO_DIR}/datasets/cifar_train}"
+DATA_DIR="${DATA_DIR:-/home/shakthip/improved-diffusion/datasets/cifar_train}"
+
+# Energy regularization.
+ENERGY_LAMBDA="${ENERGY_LAMBDA:-0.0}"
+ENERGY_MODE="${ENERGY_MODE:-batch_mean}"
 
 # Logging.
-OPENAI_LOGDIR="${OPENAI_LOGDIR:-${REPO_DIR}/logs/cifar10_class_conditional}"
+OPENAI_LOGDIR="${OPENAI_LOGDIR:-${REPO_DIR}/logs/cifar10_class_conditional_${ENERGY_LAMBDA}_${ENERGY_MODE}}"
 export OPENAI_LOGDIR
 
 # Launch mode.
@@ -32,16 +37,13 @@ LOG_INTERVAL="${LOG_INTERVAL:-10}"
 LR_ANNEAL_STEPS="${LR_ANNEAL_STEPS:-800000}"
 USE_FP16="${USE_FP16:-False}"
 
-# Energy regularization.
-ENERGY_LAMBDA="${ENERGY_LAMBDA:-0.0}"
-ENERGY_MODE="${ENERGY_MODE:-batch_mean}"
 
 # CIFAR-10 class conditioning.
 CLASS_COND="${CLASS_COND:-True}"
 NUM_CLASSES="${NUM_CLASSES:-10}"
 
 # Resume support.
-RESUME_CHECKPOINT="${RESUME_CHECKPOINT:-}"
+RESUME_CHECKPOINT="${RESUME_CHECKPOINT:-/scratch1/peramorphiq-branch-prediction/temp/ndiff/improved-diffusion/logs/cifar10_class_conditional_0.0_batch_mean/model130000.pt}"
 
 # Optional dataset prep.
 PREPARE_DATA="${PREPARE_DATA:-0}"
